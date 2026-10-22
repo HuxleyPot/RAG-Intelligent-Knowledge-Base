@@ -16,8 +16,14 @@ public class JwtInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+
         // 1. 获取请求头中的 Token (格式一般为 "Bearer eyJ...")
         String authHeader = request.getHeader("Authorization");
+
+        // 提前设置响应编码，防止中文乱码
+        response.setCharacterEncoding("UTF-8");
+        response.setContentType("application/json;charset=UTF-8");
+
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             response.setStatus(401);
             response.getWriter().write("{\"code\":401,\"message\":\"未登录或Token缺失\"}");
