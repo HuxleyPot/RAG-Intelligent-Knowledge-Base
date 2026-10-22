@@ -1,0 +1,82 @@
+# ==================================================
+# myRAG 仓库根忽略规则
+# 说明：本文件位于仓库根，规则对全部子目录生效。
+#       backend/.gitignore 保留，用于 Java/Maven 的细化规则。
+# ==================================================
+
+# ---------- Python ----------
+.venv/
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+.eggs/
+build/
+dist/
+*.whl
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+
+# ---------- 本地模型文件（体积过大，不入库） ----------
+all-MiniLM-L6-v2/
+*.safetensors
+*.h5
+*.ot
+*.ckpt
+*.onnx
+
+# ---------- 本地数据库数据目录（运行中的 MySQL / Qdrant 数据） ----------
+# 这些是容器运行时写入的数据文件，绝不应进入版本库
+data/
+mysql-data/
+qdrant_storage/
+
+# ---------- Java / Maven ----------
+target/
+*.class
+*.jar
+*.war
+.mvn/wrapper/maven-wrapper.jar
+
+# ---------- Node / 前端 ----------
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# ---------- IDE / 操作系统 ----------
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------- 本地环境变量 / 密钥 ----------
+.env
+.env.*
+!.env.example
+*.local.properties
+application-local.properties
+application-local.yml
+
+# ---------- 日志 / 临时文件 ----------
+*.log
+logs/
+tmp/
+temp/
+
+# ---------- 杂项 ----------
+*.bak
+*.swp
+*~

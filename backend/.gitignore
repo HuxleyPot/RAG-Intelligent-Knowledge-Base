@@ -1,0 +1,25 @@
+# Java / Maven
+target/
+*.class
+*.log
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.whl
+
+# 模型文件 (体积太大)
+all-MiniLM-L6-v2/
+
+# Node / 前端
+node_modules/
+
+# IDE / 环境配置
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# 本地环境变量
+.env
