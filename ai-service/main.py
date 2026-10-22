@@ -7,6 +7,7 @@ import uvicorn
 from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue
+from openai import OpenAI # 👈 新增导入
 
 sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
 app = FastAPI(title="RAG AI Service")
@@ -15,6 +16,14 @@ print("正在加载 Embedding 模型到 GPU...")
 model = SentenceTransformer('./all-MiniLM-L6-v2', device='cuda')
 client = QdrantClient(url="http://localhost:6333")
 COLLECTION_NAME = "document_chunks"
+
+# 👇 初始化硅基流动客户端
+# ⚠️ 请把下面引号里的内容换成你自己的硅基流动 API Key！
+SILICONFLOW_API_KEY = "sk-你的硅基流动KEY填在这里"
+llm_client = OpenAI(
+    api_key="sk-wbnmyazxpzxawyfcjzaqehadsepwolqjkfhipwjldtqhbkim",
+    base_url="https://api.siliconflow.cn/v1"
+)
 
 if not client.collection_exists(COLLECTION_NAME):
     client.create_collection(
@@ -27,16 +36,15 @@ print("✅ 模型加载完毕，Qdrant 连接成功！")
 def health_check():
     return {"status": "ok", "message": "AI Service is running"}
 
+# 原有的文档处理接口保持不变
 @app.post("/api/v1/documents/process")
 async def process_document(file_path: str = Form(...), kb_id: int = Form(...), doc_id: int = Form(...)):
     print(f"\n[收到处理请求] 文档ID={doc_id}, 知识库ID={kb_id}")
     if not os.path.exists(file_path):
         return {"code": 500, "message": "文件不存在"}
     
-    # 👇 终极容错读取：遍历所有常见编码
     content = ""
     encodings = ['utf-8', 'gbk', 'gb18030', 'big5', 'utf-16', 'utf-16le', 'utf-16be']
-    
     for enc in encodings:
         try:
             with open(file_path, 'r', encoding=enc) as f:
@@ -46,16 +54,13 @@ async def process_document(file_path: str = Form(...), kb_id: int = Form(...), d
         except UnicodeDecodeError:
             continue
             
-    # 如果所有已知编码都失败了，强行读取（忽略错误，防止崩溃）
     if not content:
         try:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
-            print("⚠️ 遇到未知编码，已使用兜底模式强行读取（部分乱码可能被丢弃）")
+            print("⚠️ 遇到未知编码，已使用兜底模式强行读取")
         except Exception as e:
-            print(f"❌ 读取文件彻底失败: {e}")
             return {"code": 500, "message": "文件编码无法识别"}
-    # 👆 容错结束
         
     chunk_size, overlap = 500, 100
     chunks = [content[i:i+chunk_size] for i in range(0, len(content), chunk_size - overlap) if len(content[i:i+chunk_size].strip()) > 0]
@@ -69,7 +74,6 @@ async def process_document(file_path: str = Form(...), kb_id: int = Form(...), d
     client.upsert(collection_name=COLLECTION_NAME, points=points)
     print(f"🎉 成功将 {len(points)} 个向量写入 Qdrant！")
 
-    # 通知 Java 后端更新状态
     try:
         java_url = f"http://localhost:18080/api/documents/{doc_id}/status"
         res = requests.post(java_url, params={"status": "AVAILABLE"})
@@ -79,6 +83,59 @@ async def process_document(file_path: str = Form(...), kb_id: int = Form(...), d
         print(f"❌ 调用 Java 接口出错: {e}")
 
     return {"code": 200, "message": "处理完成", "data": {"status": "AVAILABLE", "chunks": len(chunks)}}
+
+# 👇 新增：RAG 问答接口
+@app.post("/api/v1/rag/answer")
+async def rag_answer(question: str = Form(...), kb_id: int = Form(...)):
+    print(f"\n[收到问答请求] 知识库ID={kb_id}, 问题: {question}")
+    
+    # 1. 问题向量化
+    question_vector = model.encode(question).tolist()
+    
+    # 2. 去 Qdrant 检索 (只检索当前 kb_id 的文本块)
+    search_result = client.query_points(
+        collection_name=COLLECTION_NAME,
+        query=question_vector,
+        query_filter=Filter(must=[FieldCondition(key="kb_id", match=MatchValue(value=kb_id))]),
+        limit=5 # 取最相关的 5 个块
+    ).points
+    
+    if not search_result:
+        return {"code": 200, "message": "未找到相关文档", "data": {"answer": "抱歉，当前知识库没有相关内容。", "references": []}}
+        
+    # 3. 组装上下文和引用
+    context_text = "\n\n---\n\n".join([point.payload["text"] for point in search_result])
+    references = [{"doc_id": p.payload["doc_id"], "chunk_index": p.payload["chunk_index"], "text": p.payload["text"]} for p in search_result]
+    
+    # 4. 构建 Prompt
+    prompt = f"""你是一个智能知识库助手，正在帮助用户解答关于文档的问题。
+请综合以下提供的参考片段来回答用户的问题。
+如果用户的提问是要求“总结”或“概括”，请根据片段内容进行合理的归纳和提炼。
+如果参考片段确实与问题完全无关，再回答“根据现有资料，无法回答该问题”。
+
+参考信息：
+{context_text}
+
+用户问题：{question}
+
+请给出你的回答："""
+    
+    print("正在请求大模型生成答案...")
+    try:
+        # 5. 调用大模型
+        response = llm_client.chat.completions.create(
+            model="Qwen/Qwen2.5-72B-Instruct", # 这里用的是 72B 模型，也可以用 Qwen/Qwen3-8B 免费
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=1000
+        )
+        answer = response.choices[0].message.content
+        print("✅ 大模型回答完毕！")
+        
+        return {"code": 200, "message": "处理成功", "data": {"answer": answer, "references": references}}
+    except Exception as e:
+        print(f"❌ 大模型调用失败: {e}")
+        return {"code": 500, "message": f"调用大模型失败: {e}"}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=18000)

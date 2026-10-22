@@ -85,4 +85,26 @@ public class DocumentController {
         }
         return Result.error("文档不存在");
     }
+
+        // 新增：转发前端问答请求到 Python AI 服务
+    @PostMapping("/chat")
+    public Result<Object> chat(@RequestParam String question, @RequestParam Long kbId) {
+        try {
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            body.add("question", question);
+            body.add("kb_id", kbId);
+
+            // 请求 Python 的 RAG 接口
+            String pythonUrl = "http://localhost:18000/api/v1/rag/answer";
+            Object response = restTemplate.postForObject(pythonUrl, body, Object.class);
+            
+            // 因为 Python 返回的本身就是 {code, message, data}，所以直接透传
+            return Result.success(response);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Result.error("问答请求失败: " + e.getMessage());
+        }
+    }
+
+
 }

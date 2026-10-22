@@ -18,6 +18,10 @@
         <div style="display: flex; align-items: center; gap: 16px;">
           <el-button @click="router.push('/dashboard')">← 返回</el-button>
           <h2 class="page-title">知识库文档管理</h2>
+          <!-- 👇 新增的对话按钮 -->
+          <el-button type="primary" @click="router.push(`/chat/${kbId}`)" style="background-color: #18181b; border-color: #18181b;">
+            💬 开始对话
+          </el-button>
         </div>
       </header>
 

@@ -18,6 +18,11 @@ const router = createRouter({
       path: '/kb/:id',
       name: 'KbDetail',
       component: () => import('../views/KbDetail.vue')
+    },
+        {
+      path: '/chat/:id',
+      name: 'Chat',
+      component: () => import('../views/Chat.vue')
     }
   ]
 })
