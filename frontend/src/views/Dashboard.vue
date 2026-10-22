@@ -141,9 +141,9 @@ const handleLogout = () => {
   router.push('/login')
 }
 
-// 跳转到文档详情页 (下一步实现)
+// 跳转到文档详情页
 const goToDetail = (id: number) => {
-  ElMessage.info(`准备进入知识库 ID: ${id}`)
+  router.push(`/kb/${id}`)
 }
 
 // 日期格式化

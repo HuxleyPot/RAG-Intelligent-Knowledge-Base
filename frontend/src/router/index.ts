@@ -13,6 +13,11 @@ const router = createRouter({
       path: '/dashboard',
       name: 'Dashboard',
       component: () => import('../views/Dashboard.vue')
+    },
+     {
+      path: '/kb/:id',
+      name: 'KbDetail',
+      component: () => import('../views/KbDetail.vue')
     }
   ]
 })
