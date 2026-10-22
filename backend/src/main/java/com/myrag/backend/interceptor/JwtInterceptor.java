@@ -17,6 +17,10 @@ public class JwtInterceptor implements HandlerInterceptor {
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
 
+         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
+
         // 1. 获取请求头中的 Token (格式一般为 "Bearer eyJ...")
         String authHeader = request.getHeader("Authorization");
 

@@ -3,6 +3,7 @@ package com.myrag.backend.config;
 import com.myrag.backend.interceptor.JwtInterceptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -15,7 +16,18 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(jwtInterceptor)
-                .addPathPatterns("/api/**") // 拦截所有 /api 开头的请求
-                .excludePathPatterns("/api/auth/login"); // 但放行登录接口
+                .addPathPatterns("/api/**")
+                .excludePathPatterns("/api/auth/login");
+    }
+
+    // ✨ 新增：允许跨域请求
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("/**")
+                .allowedOriginPatterns("*")
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                .allowedHeaders("*")
+                .allowCredentials(true)
+                .maxAge(3600);
     }
 }
