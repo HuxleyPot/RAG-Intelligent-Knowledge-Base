@@ -24,7 +24,18 @@ public class DocumentController {
     @Autowired
     private DocumentMapper documentMapper;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+        // 👇 新增：配置支持大文件处理的长超时 RestTemplate
+    private final RestTemplate restTemplate;
+
+    public DocumentController() {
+        org.springframework.http.client.SimpleClientHttpRequestFactory factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        // 连接超时 10 秒
+        factory.setConnectTimeout(10000);
+        // 读取超时 300 秒 (5分钟) - 防止大文件在 Python 端处理太久导致 Java 报错
+        factory.setReadTimeout(300000);
+        this.restTemplate = new RestTemplate(factory);
+    }
+
     private static final String UPLOAD_DIR = System.getProperty("user.dir") + "/data/uploads";
 
     @PostMapping("/upload")
@@ -56,8 +67,12 @@ public class DocumentController {
                 body.add("kb_id", kbId);
                 body.add("doc_id", doc.getId());
                 restTemplate.postForEntity("http://localhost:18000/api/v1/documents/process", body, String.class);
-            } catch (Exception e) {
+                       } catch (Exception e) {
                 System.err.println("调用 Python 服务失败: " + e.getMessage());
+                // 👇 新增：如果调用 Python 失败，直接更新状态为 FAILED 并记录原因
+                doc.setStatus("FAILED");
+                doc.setErrorMessage("AI 服务调用失败，请重试");
+                documentMapper.updateById(doc);
             }
             return Result.success("上传成功");
         } catch (IOException e) {
@@ -106,5 +121,62 @@ public class DocumentController {
         }
     }
 
+        // 👇 新增：重试解析
+    @PostMapping("/{id}/retry")
+    public Result<String> retry(@PathVariable Long id) {
+        Document doc = documentMapper.selectById(id);
+        if (doc == null) return Result.error("文档不存在");
+
+        doc.setStatus("PROCESSING");
+        doc.setErrorMessage(null);
+        documentMapper.updateById(doc);
+
+        try {
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            body.add("file_path", doc.getFilePath());
+            body.add("kb_id", doc.getKbId());
+            body.add("doc_id", doc.getId());
+            restTemplate.postForEntity("http://localhost:18000/api/v1/documents/process", body, String.class);
+            return Result.success("已重新发起处理");
+        } catch (Exception e) {
+            doc.setStatus("FAILED");
+            doc.setErrorMessage("重试失败：" + e.getMessage());
+            documentMapper.updateById(doc);
+            return Result.error("重试失败");
+        }
+    }
+
+       // 👇 完整的删除文档接口
+    @DeleteMapping("/{id}")
+    public Result<String> deleteDocument(@PathVariable Long id) {
+        Document doc = documentMapper.selectById(id);
+        if (doc == null) {
+            return Result.error("文档不存在");
+        }
+
+        // 1. 调用 Python 服务删除 Qdrant 中的向量
+        try {
+            restTemplate.delete("http://localhost:18000/api/v1/documents/" + id);
+            System.out.println("✅ 成功通知 Python 删除向量: " + id);
+        } catch (Exception e) {
+            System.err.println("❌ 调用 Python 删除向量失败: " + e.getMessage());
+            // 在实际生产环境中这里应该抛出异常阻止后续删除，防止产生“幽灵向量”
+            // 这里第一版为了体验顺畅，暂时忽略错误继续往下走
+        }
+
+        // 2. 删除本地磁盘文件
+        try {
+            File file = new File(doc.getFilePath());
+            if (file.exists()) {
+                file.delete();
+            }
+        } catch (Exception e) {
+            System.err.println("❌ 删除本地文件失败: " + e.getMessage());
+        }
+
+        // 3. 删除 MySQL 记录
+        documentMapper.deleteById(id);
+        return Result.success("删除成功");
+    }
 
 }

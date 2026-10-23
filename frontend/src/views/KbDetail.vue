@@ -32,17 +32,19 @@
             <h3>上传新文档</h3>
             <p>支持 PDF、DOCX、TXT 格式</p>
           </div>
-          <el-upload
+            <el-upload
             class="upload-demo"
             drag
+            multiple
+            accept=".txt,.pdf,.docx"
             :action="uploadUrl"
             :headers="uploadHeaders"
             :data="{ kbId: kbId }"
-            :show-file-list="false"
+            :show-file-list="true"
             :on-success="handleUploadSuccess"
             :on-error="handleUploadError"
             :before-upload="beforeUpload"
-          >
+            >
             <el-icon class="el-icon--upload"><upload-filled /></el-icon>
             <div class="el-upload__text">
               将文件拖到此处，或 <em>点击上传</em>
@@ -66,11 +68,33 @@
                 <el-tag v-if="scope.row.status === 'PROCESSING'" type="warning">处理中</el-tag>
                 <el-tag v-else-if="scope.row.status === 'AVAILABLE'" type="success">可用</el-tag>
                 <el-tag v-else type="danger">失败</el-tag>
+                <el-button 
+                  v-if="scope.row.status === 'FAILED' || scope.row.status === 'PROCESSING'" 
+                  type="primary" 
+                  link 
+                  size="small"
+                  @click="handleRetry(scope.row.id)"
+                >
+                  重试
+                </el-button>
+
+
               </template>
             </el-table-column>
             <el-table-column prop="createdAt" label="上传时间" width="200">
               <template #default="scope">
                 {{ new Date(scope.row.createdAt).toLocaleString() }}
+              </template>
+            </el-table-column>
+
+              <el-table-column label="操作" width="100">
+              <template #default="scope">
+                <el-button 
+                  type="danger" link size="small"
+                  @click="handleDelete(scope.row.id, scope.row.filename)"
+                >
+                  删除
+                </el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -83,7 +107,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
 import request from '../utils/request'
 
@@ -108,13 +132,24 @@ const beforeUpload = (file: File) => {
     ElMessage.error('只能上传 PDF, DOCX, TXT 文件')
     return false
   }
+  
+  // 👇 新增：限制文件不能超过 100MB（你可以根据自己电脑配置调整）
+  const isLt100M = file.size / 1024 / 1024 < 100
+  if (!isLt100M) {
+    ElMessage.error('文件大小不能超过 100MB，请拆分后再上传')
+    return false
+  }
+  
   return true
 }
 
 const handleUploadSuccess = (res: any) => {
   if (res.code === 200) {
-    ElMessage.success('上传成功')
-    fetchDocs() // 刷新列表
+    ElMessage.success('有文件上传成功，正在处理...')
+    // 延迟 1 秒刷新列表，避免并发上传时接口被打爆
+    setTimeout(() => {
+      fetchDocs()
+    }, 1000)
   } else {
     ElMessage.error(res.message || '上传失败')
   }
@@ -136,6 +171,43 @@ const fetchDocs = async () => {
     console.error(error)
   } finally {
     loading.value = false
+  }
+}
+
+const handleRetry = async (docId: number) => {
+  try {
+    const res: any = await request.post(`/documents/${docId}/retry`)
+    if (res.code === 200) {
+      ElMessage.success('已重新发起处理，请稍后刷新')
+      fetchDocs()
+    } else {
+      ElMessage.error(res.message)
+    }
+  } catch (error) {
+    ElMessage.error('重试失败')
+  }
+}
+
+const handleDelete = async (docId: number, filename: string) => {
+  try {
+    await ElMessageBox.confirm(`确定要删除文件 "${filename}" 吗？删除后无法恢复。`, '警告', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+    
+    const res: any = await request.delete(`/documents/${docId}`)
+    if (res.code === 200) {
+      ElMessage.success('删除成功')
+      fetchDocs()
+    } else {
+      ElMessage.error(res.message || '删除失败')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error(error)
+      ElMessage.error('删除请求失败')
+    }
   }
 }
 
