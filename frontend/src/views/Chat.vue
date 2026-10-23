@@ -24,9 +24,31 @@
       <div class="chat-area">
         <!-- 消息列表 -->
         <div class="message-list" ref="msgListRef">
+          
+          <!-- 👇 升级后的空状态与快捷提问卡片 -->
           <div v-if="messages.length === 0" class="empty-state">
-            <h2>👋 你好，我是知识库助手</h2>
-            <p>你可以问我关于当前知识库中的任何问题，我会基于你的文档回答。</p>
+            <div class="welcome-icon">🤖</div>
+            <h2>你好，我是知识库 AI 助手</h2>
+            <p>基于你上传的专业文档，我可以帮你总结、提取信息或解答疑问。</p>
+            
+            <div class="suggestions-grid">
+              <div class="suggestion-card" @click="quickAsk('根据《招标投标法》，招标分为哪两种方式？')">
+                <div class="suggestion-title">💡 法规查询</div>
+                <div class="suggestion-text">根据《招标投标法》，招标分为哪两种方式？</div>
+              </div>
+              <div class="suggestion-card" @click="quickAsk('根据法规，在哪种情况下可以采用邀请招标？')">
+                <div class="suggestion-title">📊 跨段落归纳</div>
+                <div class="suggestion-text">在哪种情况下可以采用邀请招标？</div>
+              </div>
+              <div class="suggestion-card" @click="quickAsk('会计档案的保管期限一般分为哪几种？')">
+                <div class="suggestion-title">🔍 细节提取</div>
+                <div class="suggestion-text">会计档案的保管期限一般分为哪几种？</div>
+              </div>
+              <div class="suggestion-card" @click="quickAsk('《电子招标投标办法》是哪个部门发布的第几号令？')">
+                <div class="suggestion-title">📌 专有名词</div>
+                <div class="suggestion-text">《电子招标投标办法》是哪个部门发布的？</div>
+              </div>
+            </div>
           </div>
           
           <div v-for="(msg, index) in messages" :key="index" :class="['message-row', msg.role]">
@@ -37,7 +59,7 @@
               <div v-if="msg.references && msg.references.length > 0" class="references">
                 <p class="ref-title">📚 参考来源：</p>
                 <el-collapse>
-                  <el-collapse-item v-for="(ref, i) in msg.references" :key="i" :title="`引用片段 ${i+1}`">
+                  <el-collapse-item v-for="(ref, i) in msg.references" :key="i" :title="`引用片段 ${Number(i) + 1}`">
                     <div class="ref-text">{{ ref.text }}</div>
                   </el-collapse-item>
                 </el-collapse>
@@ -90,6 +112,12 @@ const scrollToBottom = async () => {
   if (msgListRef.value) {
     msgListRef.value.scrollTop = msgListRef.value.scrollHeight
   }
+}
+
+// 👇 新增：点击快捷卡片直接提问
+const quickAsk = (text: string) => {
+  question.value = text
+  sendMessage()
 }
 
 const sendMessage = async () => {
@@ -150,8 +178,6 @@ const sendMessage = async () => {
 /* 聊天区样式 */
 .chat-area { flex: 1; display: flex; flex-direction: column; padding: 24px; overflow: hidden; max-width: 900px; margin: 0 auto; width: 100%; }
 .message-list { flex: 1; overflow-y: auto; padding-bottom: 24px; display: flex; flex-direction: column; gap: 20px; }
-.empty-state { text-align: center; color: #71717a; margin-top: 100px; }
-.empty-state h2 { color: #18181b; font-size: 24px; }
 
 .message-row { display: flex; gap: 16px; max-width: 85%; }
 .message-row.user { flex-direction: row-reverse; align-self: flex-end; }
@@ -171,4 +197,61 @@ const sendMessage = async () => {
 
 /* 输入区 */
 .input-area { margin-top: 16px; }
+
+/* 👇 新增：欢迎界面美化与快捷卡片样式 */
+.empty-state {
+  text-align: center;
+  color: #71717a;
+  margin-top: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.welcome-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  background: #f4f4f5;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+.empty-state h2 { color: #18181b; font-size: 24px; margin: 0 0 8px 0; }
+.empty-state p { margin: 0 0 32px 0; font-size: 15px; }
+
+.suggestions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  max-width: 600px;
+  width: 100%;
+}
+.suggestion-card {
+  background: #ffffff;
+  border: 1px solid #e4e4e7;
+  border-radius: 12px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+}
+.suggestion-card:hover {
+  border-color: #18181b;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  transform: translateY(-2px);
+}
+.suggestion-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #18181b;
+  margin-bottom: 8px;
+}
+.suggestion-text {
+  font-size: 14px;
+  color: #52525b;
+  line-height: 1.5;
+}
 </style>
