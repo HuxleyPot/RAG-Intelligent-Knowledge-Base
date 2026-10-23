@@ -21,7 +21,7 @@ COLLECTION_NAME = "document_chunks"
 # ⚠️ 请把下面引号里的内容换成你自己的硅基流动 API Key！
 SILICONFLOW_API_KEY = "sk-你的硅基流动KEY填在这里"
 llm_client = OpenAI(
-    api_key="sk-wbnmyazxpzxawyfcjzaqehadsepwolqjkfhipwjldtqhbkim",
+    api_key="",
     base_url="https://api.siliconflow.cn/v1"
 )
 
